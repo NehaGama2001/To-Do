@@ -1,0 +1,77 @@
+name: CI
+
+on:
+  push:
+    branches: [ main ]
+  pull_request:
+    branches: [ main ]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  backend:
+    name: Backend (.NET)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: backend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup .NET 10
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '10.0.x'
+
+      - name: Restore dependencies
+        run: dotnet restore TodoApi.Tests/TodoApi.Tests.csproj
+
+      - name: Build
+        run: dotnet build TodoApi.Tests/TodoApi.Tests.csproj --no-restore -c Release
+
+      - name: Run unit tests
+        run: dotnet test TodoApi.Tests/TodoApi.Tests.csproj --no-build -c Release --verbosity normal
+
+      - name: Publish API
+        run: dotnet publish TodoApi/TodoApi.csproj -c Release -o ../publish
+
+      - name: Upload API build
+        uses: actions/upload-artifact@v4
+        with:
+          name: api-publish
+          path: backend/publish
+
+  frontend:
+    name: Frontend (Angular)
+    runs-on: ubuntu-latest
+    defaults:
+      run:
+        working-directory: frontend
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node 20
+        uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: 'npm'
+          cache-dependency-path: frontend/package-lock.json
+
+      - name: Install dependencies
+        run: npm ci
+
+      - name: Run unit tests
+        run: npm test -- --watch=false --browsers=ChromeHeadlessCI
+
+      - name: Production build
+        run: npm run build
+
+      - name: Upload Angular build
+        uses: actions/upload-artifact@v4
+        with:
+          name: angular-dist
+          path: frontend/dist/todo-app
